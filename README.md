@@ -1,5 +1,5 @@
 
-# GPT From Scratch
+# Bigram GPT model
 
 A minimal implementation of a **Generative Pretrained Transformer (GPT)** built from scratch in PyTorch, based on the seminal paper _["Attention is All You Need"](https://arxiv.org/abs/1706.03762)_ and inspired by [Andrej Karpathy's](https://github.com/karpathy) educational lecture series.
 
@@ -23,7 +23,7 @@ This project trains a character-level Transformer model on a tiny version of Sha
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/gpt-from-scratch.git
+git clone https://github.com/yourusername/transformer.git
 cd gpt-from-scratch
 ```
 
