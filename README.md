@@ -47,7 +47,7 @@ python main.py
 
 ---
 
-## 🛠️ How It Works
+## How It Works
 
 ### Tokenization & Encoding
 
@@ -65,7 +65,7 @@ python main.py
   - Residual connections & LayerNorm
 - **Language Modeling Head**: Outputs logits over vocabulary to predict the next character.
 
-### 🔁 Training
+### Training
 
 - Trains on batches of sequences using cross-entropy loss.
 - Periodically evaluates on a validation set.
