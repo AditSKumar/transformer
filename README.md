@@ -13,7 +13,6 @@ This project trains a character-level Transformer model on a tiny version of Sha
 - Custom multi-head self-attention from scratch
 - Transformer blocks with residual connections & layer normalization
 - Text generation with sampling
-- Clean and minimal codebase (~300 lines)
 - Based on core concepts from the GPT family of models
 
 ---
