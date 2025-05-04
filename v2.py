@@ -3,15 +3,17 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 # hyperparameters
-batch_size = 32 # how many independent sequences will we process in parallel?
-block_size = 8 # what is the maximum context length for predictions?
+batch_size = 64 #independent sequences will we process in parallel
+block_size = 256 #maximum context length for predictions
 max_iters = 5000
 eval_interval = 500
-learning_rate = 1e-3
+learning_rate = 3e-4
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
-n_embed = 32 # size of embedding vector
-# ------------
+n_embed = 384 # size of embedding vector
+n_head = 6 # number of attention heads
+n_layer = 6 # number of transformer blocks
+dropout = 0.2 # dropout rate
 
 torch.manual_seed(1337)
 
@@ -109,7 +111,7 @@ class Head(nn.Module):
         self.value = nn.Linear(n_embed, head_size, bias=False) #value 
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size))) #lower triangular matrix to prevent peeking ahead
 
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(dropout) #dropout layer to prevent overfitting
 
     def forward(self, x):
         B,T,C = x.shape #batch size, time dimension, channel dimension
@@ -133,25 +135,39 @@ class MultiHeadAttention(nn.Module):
         super().__init__()
         self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)]) #creating multiple heads
         self.proj = nn.Linear(head_size * num_heads, n_embed) #linear layer to project the embedding to the vocab size
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(dropout) #dropout layer to prevent overfitting
 
     def forward(self, x):
         out = torch.cat([h(x) for h in self.heads], dim=-1) #concatenating the output of all the heads
         out = self.dropout(self.proj(out)) #projecting it to the vocab size
         return out
 
-class FeedFoward(nn.Module):
+class FeedForward(nn.Module):
     def __init__(self, n_embed):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(n_embed, 4 * n_embed),
             nn.ReLU(),
             nn.Linear(4 * n_embed, n_embed),
-            nn.Dropout(0.1),
+            nn.Dropout(dropout),
         )
 
     def forward(self, x):
         return self.net(x)
+
+class Block(nn.Module):
+    def __init__(self, n_embed, n_head):
+        super().__init__()
+        head_size = n_embed // n_head #size of each head
+        self.sa = MultiHeadAttention(n_head, head_size) #multi head self attention head 
+        self.ffwd = FeedFoward(n_embed) #feed forward layer
+        self.ln1 = nn.LayerNorm(n_embed) #layer normalisation
+        self.ln2 = nn.LayerNorm(n_embed) #layer normalisation
+
+    def forward(self, x):
+        x = x + self.sa(self.ln1(x)) #adding the output of the self attention to the input (residual connection)
+        x = x + self.ffwd(self.ln2(x)) #adding the output of the feed forward to the input (residual connection)
+        return x
 
 class BigramLanguageModel(nn.Module):
 
@@ -160,9 +176,11 @@ class BigramLanguageModel(nn.Module):
         # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embed) #token embeddig table
         self.position_embedding_table = nn.Embedding(block_size, n_embed) #position embedding table
+        self.blocks = nn.Sequential(* [Block(n_embed, n_head=n_head) for _ in range(n_layer)]) #stacking the blocks of self attention and feed forward layers to the input
+        self.ln_f = nn.LayerNorm(n_embed) #final layer normalisation
         # self.sa_head = Head(n_embed) #self attention head
-        self.sa_heads = MultiHeadAttention(4, n_embed//4) #multi head self attention head 4 heads of 8d self attention
-        self.ffwd = FeedFoward(n_embed) #feed forward layer
+        # self.sa_heads = MultiHeadAttention(4, n_embed//4) #multi head self attention head 4 heads of 8d self attention
+        # self.ffwd = FeedFoward(n_embed) #feed forward layer
         self.lm_head = nn.Linear(n_embed, vocab_size) #linear layer to project the embedding to the vocab size
 
     def forward(self, idx, targets=None):
@@ -172,8 +190,10 @@ class BigramLanguageModel(nn.Module):
         pos_embeddings = self.position_embedding_table(torch.arange(T, device=device)) # (T, C) position embeddings
         x = tok_embeddings + pos_embeddings # (B, T, C) adding the token and position embeddings
         # x = self.sa_head(x) #applying the self attention head to the input
-        x = self.sa_heads(x) #applying the multi head self attention to the input
-        x = self.ffwd(x)
+        # x = self.sa_heads(x) #applying the multi head self attention to the input
+        # x = self.ffwd(x)
+        x = self.blocks(x) #applying the blocks of self attention and feed forward layers to the input
+        x = self.ln_f(x) #final layer normalisation
         logits = self.lm_head(x) # (B, T, vocab_size) logits for next token
 
         if targets == None:
